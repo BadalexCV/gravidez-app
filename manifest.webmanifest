@@ -1,0 +1,13 @@
+{
+  "name": "Gravidez — Acompanhamento V3",
+  "short_name": "Gravidez",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f3efe8",
+  "theme_color": "#f3efe8",
+  "icons": [{"src":"icons/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}],
+  "id":"./",
+  "description":"Acompanhamento partilhado da gravidez, agenda, ecografias, registos, notificações e PDF.",
+  "categories":["health","lifestyle"]
+}
