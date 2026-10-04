@@ -1,0 +1,21 @@
+(async()=>{try{
+const API='https://cqbaismrltweojklupki.supabase.co/rest/v1/app_static_chunks?select=seq,data&order=seq.asc';
+const KEY='sb_publishable_TNjgpM5jBPyNvoufOn75oA_wPIPCGus';
+const res=await fetch(API,{headers:{apikey:KEY}});
+if(!res.ok)throw new Error('Falha ao carregar a aplicação');
+const rows=await res.json();
+const raw=atob(rows.map(x=>x.data).join(''));
+const bytes=Uint8Array.from(raw,c=>c.charCodeAt(0));
+const stream=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+const assets=JSON.parse(await new Response(stream).text());
+const html=assets['index.html'].data;
+const parsed=new DOMParser().parseFromString(html,'text/html');
+document.body.innerHTML=parsed.body.innerHTML;
+const style=document.createElement('style');style.textContent=assets['styles.css'].data;document.head.appendChild(style);
+const load=u=>new Promise((ok,fail)=>{const s=document.createElement('script');s.src=u;s.onload=ok;s.onerror=fail;document.head.appendChild(s)});
+await load('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2');
+await load('https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js');
+await load('https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js');
+let s=document.createElement('script');s.textContent=assets['config.js'].data;document.head.appendChild(s);
+s=document.createElement('script');s.textContent=assets['app.js'].data;document.head.appendChild(s);
+}catch(e){console.error(e);document.body.innerHTML='<div style="font-family:system-ui;padding:32px">Não foi possível abrir a app. Atualiza a página.</div>';}})();
