@@ -204,3 +204,159 @@
     setTimeout(()=>{ if(state?.user && state?.pregnancy) renderApp(); },80);
   } catch(e){ console.warn('Luma V4.2 hotfix not applied',e); }
 })();
+
+// Luma V4.3 — ecografia visual com miniatura e preview
+(() => {
+  try {
+    const photoCss = `
+      .eco-card-visual{padding:0!important;overflow:hidden}
+      .eco-thumb-button{display:block;width:100%;border:0;background:#eee7df;padding:0;position:relative;aspect-ratio:16/9;overflow:hidden;text-align:left}
+      .eco-thumb-button img{width:100%;height:100%;object-fit:cover;display:block}
+      .eco-thumb-loading,.eco-thumb-empty{width:100%;height:100%;display:grid;place-items:center;color:var(--muted);background:linear-gradient(145deg,#f2ebe4,#e9ded4);font-weight:700}
+      .eco-thumb-empty{font-weight:500}
+      .eco-card-body{padding:16px}
+      .eco-preview-img{width:100%;max-height:72vh;object-fit:contain;border-radius:22px;background:#171411;display:block}
+      .eco-image-meta{margin-top:10px;color:var(--muted);font-size:.9rem}
+      .eco-current-image{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--line);border-radius:18px;background:#fbf6f0}
+      .eco-current-image span:first-child{font-size:1.25rem}
+    `;
+    const s=document.createElement('style'); s.id='luma-v43-eco-style'; s.textContent=photoCss; document.head.appendChild(s);
+
+    firstEcoPath = function(media){
+      if(!media) return '';
+      if(Array.isArray(media)) return media.find(Boolean) || '';
+      if(typeof media === 'object') return media.path || media.url || '';
+      const raw=String(media).trim();
+      if(!raw) return '';
+      if(raw.startsWith('[')){
+        try { const arr=JSON.parse(raw); if(Array.isArray(arr)) return arr.find(Boolean)||''; } catch {}
+      }
+      return raw.split(/\r?\n/).map(x=>x.trim()).find(Boolean) || raw;
+    };
+
+    ultrasoundCard = function(u){
+      const data=u.baby_data||{};
+      const insights=getReferenceInsights(u.gestational_age,data);
+      const path=firstEcoPath(u.media_path);
+      const photo = path
+        ? `<button type="button" class="eco-thumb-button" data-eco-path="${esc(path)}" data-eco-title="${esc(u.title||'Ecografia')}"><div class="eco-thumb-loading">A carregar imagem…</div></button>`
+        : `<div class="eco-thumb-button"><div class="eco-thumb-empty">Sem imagem associada</div></div>`;
+      return `<div class="item-card eco-card-visual">
+        ${photo}
+        <div class="eco-card-body">
+          <div class="item-head">
+            <div><h2>${esc(u.title||'Ecografia')}</h2><p class="muted">${fmtDate(u.exam_date)} · ${esc(u.gestational_age||'—')} semanas${u.clinic?' · '+esc(u.clinic):''}</p></div>
+            <div class="item-actions"><button class="icon-btn" data-edit-ultrasound="${u.id}">✎</button><button class="icon-btn" data-delete-ultrasound="${u.id}">🗑</button></div>
+          </div>
+          <div class="chips">
+            ${data.crl_mm?`<span class="chip">CRL ${esc(data.crl_mm)} mm</span>`:''}
+            ${data.fhr_bpm?`<span class="chip">FCF ${esc(data.fhr_bpm)} bpm</span>`:''}
+            ${data.bpd_mm?`<span class="chip">BPD ${esc(data.bpd_mm)} mm</span>`:''}
+            ${data.efw_g?`<span class="chip">Peso est. ${esc(data.efw_g)} g</span>`:''}
+          </div>
+          ${insights.length?`<div class="chips">${insights.map(i=>`<span class="chip ${i.state==='ok'?'ok':'warn'}">${esc(i.label)} · ${esc(i.text)}</span>`).join('')}</div>`:''}
+          ${u.notes?`<p>${esc(u.notes)}</p>`:''}
+          <p class="field-hint">Comparação meramente informativa; a interpretação clínica cabe ao/à obstetra ou ecografista.</p>
+        </div>
+      </div>`;
+    };
+
+    renderUltrasounds = function(){
+      return `<section class="view">
+        <div class="item-head"><div><p class="eyebrow">Ecografias</p><h2>Imagens, medições e evolução</h2></div><button class="btn" id="newUltrasoundBtn">Nova ecografia</button></div>
+        <div class="list">${state.ultrasounds.length?state.ultrasounds.map(u=>ultrasoundCard(u)).join(''):'<div class="note-box">Ainda não tens ecografias registadas.</div>'}</div>
+      </section>`;
+    };
+
+    openEcoPreview = function(url,title){
+      openModal({
+        eyebrow:'Ecografia',
+        title:title||'Imagem',
+        html:`<img class="eco-preview-img" src="${esc(url)}" alt="${esc(title||'Ecografia')}" /><p class="eco-image-meta">Toca fora ou no × para fechar.</p>`,
+        onSubmit:async()=>{}
+      });
+    };
+
+    loadUltrasoundImages = async function(){
+      const nodes=[...document.querySelectorAll('[data-eco-path]')];
+      await Promise.all(nodes.map(async el=>{
+        if(el.dataset.loaded==='1') return;
+        const path=el.dataset.ecoPath;
+        try{
+          const {data,error}=await state.client.storage.from('pregnancy-files').createSignedUrl(path,3600);
+          if(error) throw error;
+          const url=data?.signedUrl;
+          if(!url) throw new Error('Sem URL');
+          el.innerHTML=`<img src="${esc(url)}" alt="${esc(el.dataset.ecoTitle||'Ecografia')}" loading="lazy" />`;
+          el.dataset.loaded='1';
+          el.onclick=()=>openEcoPreview(url,el.dataset.ecoTitle||'Ecografia');
+        }catch(err){
+          console.warn('Falha ao carregar imagem da ecografia',err);
+          el.innerHTML='<div class="eco-thumb-empty">Não foi possível carregar a imagem</div>';
+        }
+      }));
+    };
+
+    openUltrasoundModal = function(item={}){
+      const data=item.baby_data||{};
+      const hasImage=!!firstEcoPath(item.media_path);
+      openModal({
+        eyebrow:item.id?'Editar ecografia':'Nova ecografia',
+        title:item.id?'Editar ecografia':'Nova ecografia',
+        html:`
+          <div><label>Título</label><input class="input" name="title" value="${esc(item.title||'Ecografia')}" required /></div>
+          <div class="grid-2"><div><label>Data</label><input class="input" type="date" name="exam_date" value="${esc(item.exam_date||todayIso())}" required /></div><div><label>Idade gestacional</label><input class="input" name="gestational_age" value="${esc(item.gestational_age||'')}" placeholder="Ex.: 12+4" /></div></div>
+          <div class="grid-2"><div><label>Clínica</label><input class="input" name="clinic" value="${esc(item.clinic||'')}" /></div><div><label>Médico/a</label><input class="input" name="doctor" value="${esc(item.doctor||'')}" /></div></div>
+          <div class="grid-2"><div><label>CRL (mm)</label><input class="input" type="number" step="0.1" name="crl_mm" value="${esc(data.crl_mm||'')}" /></div><div><label>FCF (bpm)</label><input class="input" type="number" step="1" name="fhr_bpm" value="${esc(data.fhr_bpm||'')}" /></div></div>
+          <div class="grid-2"><div><label>BPD (mm)</label><input class="input" type="number" step="0.1" name="bpd_mm" value="${esc(data.bpd_mm||'')}" /></div><div><label>Peso estimado (g)</label><input class="input" type="number" step="1" name="efw_g" value="${esc(data.efw_g||'')}" /></div></div>
+          ${hasImage?'<div class="eco-current-image"><span>▧</span><div><strong>Imagem guardada</strong><div class="field-hint">Escolhe uma nova imagem apenas se quiseres substituí-la.</div></div></div>':''}
+          <div><label>Imagem da ecografia</label><input class="input" type="file" name="media_file" accept="image/*" /></div>
+          <div><label>Notas</label><textarea class="textarea" name="notes">${esc(item.notes||'')}</textarea></div>
+          <button class="btn full">Guardar</button>
+          ${item.id?'<button class="btn danger full" type="button" id="deleteInlineUltrasound">Eliminar</button>':''}
+        `,
+        onSubmit:async fd=>{
+          const baby_data={
+            crl_mm:numOrNull(fd.get('crl_mm')),
+            fhr_bpm:numOrNull(fd.get('fhr_bpm')),
+            bpd_mm:numOrNull(fd.get('bpd_mm')),
+            efw_g:numOrNull(fd.get('efw_g'))
+          };
+          const row={
+            pregnancy_id:state.pregnancy.id,
+            title:fd.get('title'),
+            exam_date:fd.get('exam_date'),
+            gestational_age:fd.get('gestational_age')||null,
+            clinic:fd.get('clinic')||null,
+            doctor:fd.get('doctor')||null,
+            notes:fd.get('notes')||null,
+            baby_data
+          };
+          const file=modalForm.querySelector('[name="media_file"]')?.files?.[0];
+          if(file){
+            const safe=(file.name||'eco.jpg').replace(/[^a-zA-Z0-9._-]+/g,'-');
+            const path=`${state.pregnancy.id}/eco-${crypto.randomUUID()}-${safe}`;
+            const up=await state.client.storage.from('pregnancy-files').upload(path,file,{contentType:file.type||'image/jpeg',upsert:false});
+            if(up.error) throw up.error;
+            row.media_path=path;
+          }
+          const res=item.id
+            ? await state.client.from('ultrasounds').update(row).eq('id',item.id)
+            : await state.client.from('ultrasounds').insert(row);
+          if(res.error) throw res.error;
+        },
+        afterOpen(){
+          if(item.id) document.getElementById('deleteInlineUltrasound').onclick=async()=>{await deleteRow('ultrasounds',item.id,'Ecografia eliminada',true);closeModal();};
+        }
+      });
+    };
+
+    const bindV42=bindViewActions;
+    bindViewActions=function(){
+      bindV42();
+      if(state.currentView==='ultrasounds') setTimeout(loadUltrasoundImages,0);
+    };
+
+    setTimeout(()=>{ if(state?.user&&state?.pregnancy&&state.currentView==='ultrasounds') renderApp(); },100);
+  } catch(e){ console.warn('Luma V4.3 eco hotfix not applied',e); }
+})();
