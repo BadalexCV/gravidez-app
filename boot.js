@@ -17,5 +17,5 @@ await load('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2');
 await load('https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js');
 await load('https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js');
 let s=document.createElement('script');s.textContent=assets['config.js'].data;document.head.appendChild(s);
-s=document.createElement('script');s.textContent=assets['app.js'].data;document.head.appendChild(s);
+s=document.createElement('script');s.textContent=assets['app.js'].data;document.head.appendChild(s);await load('hotfix.js');
 }catch(e){console.error(e);document.body.innerHTML='<div style="font-family:system-ui;padding:32px">Não foi possível abrir a app. Atualiza a página.</div>';}})();
