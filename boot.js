@@ -1,7 +1,7 @@
 (async()=>{try{
 const API='https://cqbaismrltweojklupki.supabase.co/rest/v1/app_static_chunks?select=seq,data&order=seq.asc';
 const KEY='sb_publishable_TNjgpM5jBPyNvoufOn75oA_wPIPCGus';
-const res=await fetch(API,{headers:{apikey:KEY}});
+const res=await fetch(API,{cache:'no-store',headers:{apikey:KEY}});
 if(!res.ok)throw new Error('Falha ao carregar a aplicação');
 const rows=await res.json();
 const raw=atob(rows.map(x=>x.data).join(''));
@@ -17,5 +17,5 @@ await load('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2');
 await load('https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js');
 await load('https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js');
 let s=document.createElement('script');s.textContent=assets['config.js'].data;document.head.appendChild(s);
-s=document.createElement('script');s.textContent=assets['app.js'].data;document.head.appendChild(s);await load('hotfix.js');
+s=document.createElement('script');s.textContent=assets['app.js'].data;document.head.appendChild(s);await load('hotfix.js?v=42');
 }catch(e){console.error(e);document.body.innerHTML='<div style="font-family:system-ui;padding:32px">Não foi possível abrir a app. Atualiza a página.</div>';}})();
