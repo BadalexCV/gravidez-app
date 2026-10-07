@@ -1,13 +1,13 @@
 {
-  "name": "Gravidez — Acompanhamento V3",
-  "short_name": "Gravidez",
+  "name": "Luma",
+  "short_name": "Luma",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#f3efe8",
-  "theme_color": "#f3efe8",
+  "background_color": "#f5efe8",
+  "theme_color": "#f5efe8",
   "icons": [{"src":"icons/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}],
   "id":"./",
-  "description":"Acompanhamento partilhado da gravidez, agenda, ecografias, registos, notificações e PDF.",
+  "description":"Acompanhamento partilhado da gravidez, agenda, ecografias, medições, compras, notificações e timeline.",
   "categories":["health","lifestyle"]
 }
