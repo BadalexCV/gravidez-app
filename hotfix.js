@@ -360,3 +360,362 @@
     setTimeout(()=>{ if(state?.user&&state?.pregnancy&&state.currentView==='ultrasounds') renderApp(); },100);
   } catch(e){ console.warn('Luma V4.3 eco hotfix not applied',e); }
 })();
+
+// Luma V5 — minimal UI + light/dark/system appearance
+(() => {
+  try {
+    const V5_THEME_KEY='luma-theme';
+    const systemDark=()=>window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    getThemePreference=()=>localStorage.getItem(V5_THEME_KEY)||'system';
+    effectiveTheme=(pref=getThemePreference())=>pref==='system'?(systemDark()?'dark':'light'):pref;
+    applyLumaTheme=(pref=getThemePreference())=>{
+      localStorage.setItem(V5_THEME_KEY,pref);
+      const mode=effectiveTheme(pref);
+      document.documentElement.dataset.theme=mode;
+      document.documentElement.dataset.themePreference=pref;
+      const meta=document.querySelector('meta[name="theme-color"]');
+      if(meta) meta.setAttribute('content',mode==='dark'?'#171411':'#f7f2ec');
+    };
+    applyLumaTheme();
+    if(window.matchMedia){
+      const mq=window.matchMedia('(prefers-color-scheme: dark)');
+      mq.addEventListener?.('change',()=>{if(getThemePreference()==='system') applyLumaTheme('system');});
+    }
+
+    const css=`
+      :root{
+        --bg:#f7f2ec!important;
+        --surface:#fbf7f2!important;
+        --card:#fffdf9!important;
+        --line:#e9e0d7!important;
+        --text:#2d2926!important;
+        --muted:#877d75!important;
+        --primary:#2e2925!important;
+        --accent:#c98267!important;
+        --accent-soft:#f2ddd4!important;
+        --green:#8da17e!important;
+        --blue:#8da8c4!important;
+        --orange:#dca06f!important;
+        --soft:#f1e9e1!important;
+        --danger:#b96b61!important;
+        --shadow:0 5px 18px rgba(69,51,39,.045)!important;
+        --nav:rgba(255,253,249,.94);
+      }
+      html[data-theme="dark"]{
+        --bg:#171411!important;
+        --surface:#1d1916!important;
+        --card:#231e1a!important;
+        --line:#39312b!important;
+        --text:#f4eee8!important;
+        --muted:#aaa097!important;
+        --primary:#f1e7df!important;
+        --accent:#de8f73!important;
+        --accent-soft:#4a3027!important;
+        --green:#9fb28e!important;
+        --blue:#9eb6cf!important;
+        --orange:#e0a774!important;
+        --soft:#2b2521!important;
+        --danger:#d27f73!important;
+        --shadow:0 5px 22px rgba(0,0,0,.15)!important;
+        --nav:rgba(29,25,22,.95);
+      }
+      html,body{background:var(--bg)!important;color:var(--text)!important}
+      body{transition:background .18s ease,color .18s ease}
+      #app{max-width:760px!important}
+      .topbar{
+        background:linear-gradient(var(--bg),color-mix(in srgb,var(--bg) 92%,transparent))!important;
+        padding:16px 18px 8px!important;
+      }
+      .compact-brand img{
+        width:40px!important;height:40px!important;border-radius:14px!important;
+        background:transparent!important;border:0!important;box-shadow:none!important
+      }
+      .top-actions{gap:8px!important}
+      .icon-btn,.avatar-btn{
+        background:var(--card)!important;color:var(--text)!important;border:1px solid var(--line)!important;
+        width:40px!important;height:40px!important;border-radius:14px!important;box-shadow:none!important
+      }
+      .sync-dot{width:8px!important;height:8px!important;box-shadow:0 0 0 4px color-mix(in srgb,var(--green) 22%,transparent)!important;background:var(--green)!important}
+      .content{padding:8px 18px 8px!important}
+      .view{gap:12px!important}
+      .card,.item-card,.calendar-wrap,.stat,.kpi{
+        background:var(--card)!important;color:var(--text)!important;border:1px solid var(--line)!important;
+        box-shadow:var(--shadow)!important
+      }
+      .card,.item-card{border-radius:24px!important}
+      .stat,.kpi{border-radius:18px!important}
+      h1,h2,.brand-name,strong,label{color:var(--text)!important}
+      .muted,.eyebrow,.field-hint,.calendar-weekday{color:var(--muted)!important}
+      .eyebrow{font-size:.74rem!important;letter-spacing:.08em!important}
+      .input,.select,.textarea,.calendar-select{
+        background:var(--surface)!important;color:var(--text)!important;border:1px solid var(--line)!important;
+        border-radius:16px!important
+      }
+      .btn{border-radius:17px!important;background:var(--text)!important;color:var(--bg)!important;box-shadow:none!important}
+      .btn.secondary{background:var(--soft)!important;color:var(--text)!important}
+      .btn.ghost{background:transparent!important;color:var(--text)!important;border:1px solid var(--line)!important}
+      .btn.danger{background:color-mix(in srgb,var(--danger) 18%,var(--card))!important;color:var(--danger)!important}
+      .bottom-nav{
+        background:var(--nav)!important;border:1px solid var(--line)!important;box-shadow:0 8px 28px rgba(0,0,0,.08)!important;
+        border-radius:22px!important;padding:6px!important;bottom:8px!important
+      }
+      .bottom-nav button{padding:8px 4px!important;border-radius:16px!important;color:var(--muted)!important}
+      .bottom-nav button.active{background:transparent!important;color:var(--accent)!important;box-shadow:none!important}
+      .bottom-nav .nav-icon{font-size:1.05rem!important}
+      .modal-backdrop{background:rgba(0,0,0,.48)!important}
+      .modal-sheet{
+        background:var(--card)!important;color:var(--text)!important;border:1px solid var(--line)!important;
+        border-radius:28px!important;box-shadow:0 24px 60px rgba(0,0,0,.24)!important
+      }
+
+      .v5-home{gap:14px!important}
+      .v5-hero{
+        text-align:center;padding:24px 16px 14px;display:flex;flex-direction:column;align-items:center
+      }
+      .v5-hero-logo{
+        width:66px;height:66px;object-fit:contain;border-radius:22px;margin-bottom:16px;
+        background:transparent
+      }
+      .v5-week{
+        font-size:2.05rem;font-weight:780;letter-spacing:-.035em;line-height:1.05;margin:0;color:var(--text)
+      }
+      .v5-week-sub{margin:8px 0 0;color:var(--muted);font-size:.95rem}
+      .v5-phase{
+        padding:16px 17px!important;display:grid!important;grid-template-columns:38px 1fr!important;gap:12px!important;
+        align-items:start!important
+      }
+      .v5-phase-icon{
+        width:38px;height:38px;border-radius:13px;background:color-mix(in srgb,var(--green) 16%,var(--card));
+        display:grid;place-items:center;font-size:1.2rem
+      }
+      .v5-phase h2{font-size:1rem!important;margin:1px 0 5px!important}
+      .v5-phase p{margin:0!important;font-size:.91rem!important;line-height:1.45!important;color:var(--muted)!important}
+      .v5-next{padding:16px 17px!important}
+      .v5-next .next-date{font-size:.82rem;color:var(--accent);font-weight:750;margin-bottom:5px}
+      .v5-next h2{font-size:1.04rem!important;margin:0!important}
+      .v5-next p{font-size:.87rem!important;margin:5px 0 0!important}
+      .v5-quick-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+      .v5-quick{
+        min-height:82px;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:20px;
+        padding:13px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
+        box-shadow:var(--shadow);font-weight:700;font-size:.8rem
+      }
+      .v5-quick span{font-size:1.18rem;color:var(--accent)}
+      .v5-home-overview{display:flex;justify-content:center}
+      .v5-home-overview button{font-size:.82rem!important;padding:9px 13px!important}
+
+      .elegant-calendar{padding:15px!important}
+      .calendar-nav-row{grid-template-columns:34px minmax(0,1fr) 82px 34px!important;gap:6px!important;margin-bottom:12px!important}
+      .month-arrow{width:34px!important;height:34px!important;border-radius:12px!important;background:transparent!important;border:1px solid var(--line)!important;color:var(--text)!important}
+      .calendar-select{padding:8px 10px!important;font-size:.88rem!important}
+      .calendar-grid-compact{gap:2px!important}
+      .elegant-day{
+        border-radius:14px!important;padding:5px!important;color:var(--text)!important;min-height:44px!important
+      }
+      .elegant-day.today{background:var(--accent)!important;color:white!important}
+      .day-dots i{background:currentColor!important;opacity:.6!important}
+      .today-link{color:var(--muted)!important;font-size:.82rem!important}
+      .agenda-list .item-card{padding:14px 15px!important}
+
+      .eco-card-visual{border-radius:24px!important}
+      .eco-thumb-button{background:var(--soft)!important}
+      .eco-thumb-loading,.eco-thumb-empty{
+        background:linear-gradient(145deg,var(--soft),var(--card))!important;color:var(--muted)!important
+      }
+      .eco-card-body{padding:15px 16px!important}
+      .eco-current-image{background:var(--soft)!important;border-color:var(--line)!important}
+      .chip{background:var(--soft)!important;border-color:var(--line)!important;color:var(--text)!important}
+      .chip.ok{background:color-mix(in srgb,var(--green) 18%,var(--card))!important;color:var(--green)!important}
+      .chip.warn{background:color-mix(in srgb,var(--orange) 18%,var(--card))!important;color:var(--orange)!important}
+      .chip.info{background:color-mix(in srgb,var(--blue) 18%,var(--card))!important;color:var(--blue)!important}
+
+      .charts-grid{gap:10px!important}
+      .chart-card{padding:15px!important}
+      .chart-axis{stroke:var(--line)!important}
+      .chart-line{stroke:var(--accent)!important}
+      .chart-point{fill:var(--accent)!important;stroke:var(--card)!important}
+      .note-box{background:var(--soft)!important;border-color:var(--line)!important;color:var(--muted)!important}
+      .code-box{background:var(--surface)!important;border-color:var(--line)!important;color:var(--text)!important}
+
+      .more-menu-grid{gap:8px!important}
+      .more-menu-card{
+        background:var(--surface)!important;border:1px solid var(--line)!important;color:var(--text)!important;
+        border-radius:18px!important;padding:14px!important
+      }
+      .more-menu-card>span{color:var(--accent)!important}
+      .more-menu-card small{color:var(--muted)!important}
+      .theme-options{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+      .theme-option{
+        border:1px solid var(--line);background:var(--surface);color:var(--text);border-radius:17px;padding:13px 8px;
+        display:flex;flex-direction:column;gap:5px;align-items:center;font-weight:700
+      }
+      .theme-option.active{border-color:var(--accent);background:var(--accent-soft);color:var(--text)}
+      .theme-option span{font-size:1.2rem}
+      .appearance-preview{
+        border:1px solid var(--line);background:var(--soft);border-radius:20px;padding:16px;margin-bottom:12px
+      }
+
+      html[data-theme="dark"] .badge.consulta{background:#4a3425!important;color:#f0ad76!important}
+      html[data-theme="dark"] .badge.analise{background:#273526!important;color:#a8c59c!important}
+      html[data-theme="dark"] .badge.ecografia{background:#263440!important;color:#a8c6e0!important}
+      html[data-theme="dark"] .badge.lembrete{background:#302d2b!important;color:#bbb2ab!important}
+      html[data-theme="dark"] .badge.por_comprar{background:#362c25!important;color:#d6ae8b!important}
+      html[data-theme="dark"] .badge.comprado{background:#293628!important;color:#a7c39e!important}
+
+      @media(max-width:520px){
+        .content{padding-left:14px!important;padding-right:14px!important}
+        .v5-week{font-size:1.9rem}
+        .v5-hero{padding-top:18px}
+        .v5-hero-logo{width:58px;height:58px}
+        .v5-quick-grid{gap:8px}
+        .v5-quick{min-height:76px;padding:10px 6px}
+      }
+    `;
+    let style=document.getElementById('luma-v5-style');
+    if(!style){style=document.createElement('style');style.id='luma-v5-style';document.head.appendChild(style);}
+    style.textContent=css;
+
+    gestationalVerbose=function(){
+      const raw=weekStringFromPregnancy(state.pregnancy);
+      const parts=String(raw).split('+');
+      const w=Number(parts[0]), d=Number(parts[1]||0);
+      if(!Number.isFinite(w)) return 'Idade gestacional';
+      return `${w} ${w===1?'semana':'semanas'} + ${d} ${d===1?'dia':'dias'}`;
+    };
+
+    renderHome=function(){
+      const next=nextAppointment();
+      const phase=pregnancyPhaseInfo();
+      return `<section class="view v5-home">
+        <div class="v5-hero">
+          <img class="v5-hero-logo" src="icons/icon.svg" alt="Luma" />
+          <h1 class="v5-week">${esc(gestationalVerbose())}</h1>
+          <p class="v5-week-sub">Acompanhamento da gravidez</p>
+        </div>
+
+        <div class="card v5-phase">
+          <div class="v5-phase-icon">🌱</div>
+          <div>
+            <h2>Como está nesta fase</h2>
+            <p>${esc(phase.text)}</p>
+          </div>
+        </div>
+
+        ${next?`<div class="card v5-next">
+          <div class="item-head">
+            <div>
+              <div class="next-date">Próximo compromisso · ${fmtDate(next.appointment_date)} · ${fmtTime(next.appointment_time)}</div>
+              <h2>${esc(next.title||TYPE_LABELS[next.type]||'Compromisso')}</h2>
+              ${next.location?`<p class="muted">${esc(next.location)}</p>`:''}
+            </div>
+            <button class="btn secondary compact-btn" data-edit-appointment="${next.id}">Ver</button>
+          </div>
+        </div>`:'<div class="card v5-next"><div class="muted">Sem próximos compromissos.</div></div>'}
+
+        <div class="v5-quick-grid">
+          <button class="v5-quick" data-quick-type="appointment"><span>□</span>Compromisso</button>
+          <button class="v5-quick" data-quick-type="ultrasound"><span>▧</span>Ecografia</button>
+          <button class="v5-quick" data-quick-type="record"><span>≡</span>Registo</button>
+        </div>
+
+        <div class="v5-home-overview"><button class="btn ghost compact-btn" id="homeOverviewBtn">Visão geral</button></div>
+      </section>`;
+    };
+
+    openAppearance=function(){
+      const pref=getThemePreference();
+      openModal({
+        eyebrow:'Definições',
+        title:'Aparência',
+        html:`
+          <div class="appearance-preview">
+            <strong>Tema da aplicação</strong>
+            <div class="field-hint">Podes escolher manualmente ou acompanhar o modo do telemóvel.</div>
+          </div>
+          <div class="theme-options">
+            <button type="button" class="theme-option ${pref==='light'?'active':''}" data-theme-choice="light"><span>☀</span>Claro</button>
+            <button type="button" class="theme-option ${pref==='dark'?'active':''}" data-theme-choice="dark"><span>◐</span>Escuro</button>
+            <button type="button" class="theme-option ${pref==='system'?'active':''}" data-theme-choice="system"><span>◉</span>Automático</button>
+          </div>
+        `,
+        onSubmit:async()=>{},
+        afterOpen(){
+          modalForm.querySelectorAll('[data-theme-choice]').forEach(btn=>{
+            btn.onclick=()=>{
+              applyLumaTheme(btn.dataset.themeChoice);
+              modalForm.querySelectorAll('.theme-option').forEach(x=>x.classList.toggle('active',x===btn));
+            };
+          });
+        }
+      });
+    };
+
+    openMoreMenu=function(){
+      openModal({
+        eyebrow:'Mais',
+        title:'Outras áreas',
+        html:`<div class="more-menu-grid">
+          <button type="button" class="more-menu-card" data-more-view="records"><span>≡</span><div><strong>Registos</strong><small>Análises, peso e gráficos</small></div></button>
+          <button type="button" class="more-menu-card" data-more-view="shopping"><span>🛒</span><div><strong>Compras</strong><small>Lista e orçamento</small></div></button>
+          <button type="button" class="more-menu-card" data-more-view="timeline"><span>◌</span><div><strong>Timeline</strong><small>Histórico e PDF</small></div></button>
+          <button type="button" class="more-menu-card" id="moreOverviewBtn"><span>◎</span><div><strong>Visão geral</strong><small>DUM, DPP, clínica e código</small></div></button>
+          <button type="button" class="more-menu-card" id="appearanceBtn"><span>◐</span><div><strong>Aparência</strong><small>Claro, escuro ou automático</small></div></button>
+          <button type="button" class="more-menu-card" id="moreProfileBtn"><span>☺</span><div><strong>Perfil</strong><small>Acessos e notificações</small></div></button>
+        </div>`,
+        onSubmit:async()=>{},
+        afterOpen(){
+          modalForm.querySelectorAll('[data-more-view]').forEach(b=>b.onclick=()=>{state.currentView=b.dataset.moreView;closeModal();renderApp();});
+          document.getElementById('moreOverviewBtn').onclick=()=>{closeModal();openOverview();};
+          document.getElementById('appearanceBtn').onclick=()=>{closeModal();openAppearance();};
+          document.getElementById('moreProfileBtn').onclick=()=>{closeModal();openProfile();};
+        }
+      });
+    };
+
+    shell=function(viewHtml){
+      const displayName=state.member?.display_name||state.user?.email?.split('@')[0]||'U';
+      const moreActive=['records','shopping','timeline'].includes(state.currentView);
+      return `
+      <header class="topbar">
+        <div class="title-wrap compact-brand"><img src="icons/icon.svg" alt="Luma" /></div>
+        <div class="top-actions">
+          <span class="sync-dot" title="Sincronizado"></span>
+          <button id="quickAddBtn" class="icon-btn" aria-label="Adicionar">＋</button>
+          <button id="profileBtn" class="avatar-btn">${esc(initials(displayName))}</button>
+        </div>
+      </header>
+      <main class="content">${viewHtml}</main>
+      <nav class="bottom-nav bottom-nav-4">
+        ${navBtn('home','⌂','Início')}
+        ${navBtn('agenda','□','Compromissos')}
+        ${navBtn('ultrasounds','▧','Eco')}
+        <button id="moreNavBtn" class="${moreActive?'active':''}"><span class="nav-icon">•••</span><span>Mais</span></button>
+      </nav>`;
+    };
+
+    const bindPrev=bindViewActions;
+    bindViewActions=function(){
+      bindPrev();
+      document.getElementById('homeOverviewBtn')?.addEventListener('click',openOverview);
+    };
+
+    renderApp=function(){
+      applyLumaTheme(getThemePreference());
+      let html='';
+      if(state.currentView==='home') html=renderHome();
+      if(state.currentView==='agenda') html=renderAgenda();
+      if(state.currentView==='ultrasounds') html=renderUltrasounds();
+      if(state.currentView==='records') html=renderRecords();
+      if(state.currentView==='shopping') html=renderShopping();
+      if(state.currentView==='timeline') html=renderTimeline();
+      app.innerHTML=shell(html);
+      app.querySelectorAll('[data-nav]').forEach(btn=>btn.onclick=()=>{state.currentView=btn.dataset.nav;renderApp();});
+      document.getElementById('profileBtn').onclick=openProfile;
+      document.getElementById('quickAddBtn').onclick=openQuickAdd;
+      document.getElementById('moreNavBtn').onclick=openMoreMenu;
+      bindViewActions();
+    };
+
+    setTimeout(()=>{if(state?.user&&state?.pregnancy)renderApp();},120);
+  } catch(e){ console.warn('Luma V5 not applied',e); }
+})();
