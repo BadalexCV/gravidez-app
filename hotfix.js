@@ -323,7 +323,6 @@
             efw_g:numOrNull(fd.get('efw_g'))
           };
           const row={
-            pregnancy_id:state.pregnancy.id,
             title:fd.get('title'),
             exam_date:fd.get('exam_date'),
             gestational_age:fd.get('gestational_age')||null,
@@ -342,7 +341,7 @@
           }
           const res=item.id
             ? await state.client.from('ultrasounds').update(row).eq('id',item.id)
-            : await state.client.from('ultrasounds').insert(row);
+            : await state.client.from('ultrasounds').insert({...row,pregnancy_id:state.pregnancy.id});
           if(res.error) throw res.error;
         },
         afterOpen(){
