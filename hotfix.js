@@ -719,3 +719,89 @@
     setTimeout(()=>{if(state?.user&&state?.pregnancy)renderApp();},120);
   } catch(e){ console.warn('Luma V5 not applied',e); }
 })();
+
+// Luma V5.1 — restore dedicated charts page
+(() => {
+  try {
+    renderChartsPage=function(){
+      return `<section class="view">
+        <div class="item-head">
+          <div><p class="eyebrow">Gráficos</p><h2>Evolução dos registos</h2></div>
+          <button class="btn secondary compact-btn" id="chartsNewRecordBtn">Novo registo</button>
+        </div>
+        ${renderRecordCharts()}
+        <div class="note-box">Os gráficos são criados automaticamente quando existirem pelo menos dois valores numéricos do mesmo tipo de registo.</div>
+      </section>`;
+    };
+
+    openMoreMenu=function(){
+      openModal({
+        eyebrow:'Mais',
+        title:'Outras áreas',
+        html:`<div class="more-menu-grid">
+          <button type="button" class="more-menu-card" data-more-view="records"><span>≡</span><div><strong>Registos</strong><small>Análises, peso e notas</small></div></button>
+          <button type="button" class="more-menu-card" data-more-view="charts"><span>⌁</span><div><strong>Gráficos</strong><small>Evolução dos registos</small></div></button>
+          <button type="button" class="more-menu-card" data-more-view="shopping"><span>🛒</span><div><strong>Compras</strong><small>Lista e orçamento</small></div></button>
+          <button type="button" class="more-menu-card" data-more-view="timeline"><span>◌</span><div><strong>Timeline</strong><small>Histórico e PDF</small></div></button>
+          <button type="button" class="more-menu-card" id="moreOverviewBtn"><span>◎</span><div><strong>Visão geral</strong><small>DUM, DPP, clínica e código</small></div></button>
+          <button type="button" class="more-menu-card" id="appearanceBtn"><span>◐</span><div><strong>Aparência</strong><small>Claro, escuro ou automático</small></div></button>
+          <button type="button" class="more-menu-card" id="moreProfileBtn"><span>☺</span><div><strong>Perfil</strong><small>Acessos e notificações</small></div></button>
+        </div>`,
+        onSubmit:async()=>{},
+        afterOpen(){
+          modalForm.querySelectorAll('[data-more-view]').forEach(b=>b.onclick=()=>{state.currentView=b.dataset.moreView;closeModal();renderApp();});
+          document.getElementById('moreOverviewBtn').onclick=()=>{closeModal();openOverview();};
+          document.getElementById('appearanceBtn').onclick=()=>{closeModal();openAppearance();};
+          document.getElementById('moreProfileBtn').onclick=()=>{closeModal();openProfile();};
+        }
+      });
+    };
+
+    shell=function(viewHtml){
+      const displayName=state.member?.display_name||state.user?.email?.split('@')[0]||'U';
+      const moreActive=['records','charts','shopping','timeline'].includes(state.currentView);
+      return `
+      <header class="topbar">
+        <div class="title-wrap compact-brand"><img src="icons/icon.svg" alt="Luma" /></div>
+        <div class="top-actions">
+          <span class="sync-dot" title="Sincronizado"></span>
+          <button id="quickAddBtn" class="icon-btn" aria-label="Adicionar">＋</button>
+          <button id="profileBtn" class="avatar-btn">${esc(initials(displayName))}</button>
+        </div>
+      </header>
+      <main class="content">${viewHtml}</main>
+      <nav class="bottom-nav bottom-nav-4">
+        ${navBtn('home','⌂','Início')}
+        ${navBtn('agenda','□','Compromissos')}
+        ${navBtn('ultrasounds','▧','Eco')}
+        <button id="moreNavBtn" class="${moreActive?'active':''}"><span class="nav-icon">•••</span><span>Mais</span></button>
+      </nav>`;
+    };
+
+    const bindV5=bindViewActions;
+    bindViewActions=function(){
+      bindV5();
+      document.getElementById('chartsNewRecordBtn')?.addEventListener('click',()=>openRecordModal());
+    };
+
+    renderApp=function(){
+      applyLumaTheme(getThemePreference());
+      let html='';
+      if(state.currentView==='home') html=renderHome();
+      if(state.currentView==='agenda') html=renderAgenda();
+      if(state.currentView==='ultrasounds') html=renderUltrasounds();
+      if(state.currentView==='records') html=renderRecords();
+      if(state.currentView==='charts') html=renderChartsPage();
+      if(state.currentView==='shopping') html=renderShopping();
+      if(state.currentView==='timeline') html=renderTimeline();
+      app.innerHTML=shell(html);
+      app.querySelectorAll('[data-nav]').forEach(btn=>btn.onclick=()=>{state.currentView=btn.dataset.nav;renderApp();});
+      document.getElementById('profileBtn').onclick=openProfile;
+      document.getElementById('quickAddBtn').onclick=openQuickAdd;
+      document.getElementById('moreNavBtn').onclick=openMoreMenu;
+      bindViewActions();
+    };
+
+    setTimeout(()=>{if(state?.user&&state?.pregnancy)renderApp();},100);
+  } catch(e){console.warn('Luma V5.1 charts page not applied',e);}
+})();
