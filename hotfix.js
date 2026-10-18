@@ -876,3 +876,212 @@
     setTimeout(()=>{if(state?.user&&state?.pregnancy&&state.currentView==='charts')renderApp();},100);
   } catch(e){console.warn('Luma V5.3 ultrasound charts not applied',e);}
 })();
+
+// Luma V5.4 — reference-band ultrasound charts
+(() => {
+  try {
+    const refCss=`
+      .reference-charts{display:grid;gap:12px}
+      .ref-chart-card{padding:16px!important}
+      .ref-chart-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}
+      .ref-title-row{display:flex;align-items:center;gap:7px}
+      .ref-title-row h2{margin:0!important;font-size:1.08rem!important}
+      .ref-info-btn{width:25px;height:25px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--muted);font-weight:800;padding:0}
+      .ref-status{font-size:.76rem;font-weight:800;border-radius:999px;padding:7px 10px;white-space:nowrap}
+      .ref-status.ok{background:color-mix(in srgb,var(--green) 16%,var(--card));color:var(--green)}
+      .ref-status.warn{background:color-mix(in srgb,var(--orange) 18%,var(--card));color:var(--orange)}
+      .ref-status.none{background:var(--soft);color:var(--muted)}
+      .reference-svg{width:100%;height:auto;display:block;overflow:visible}
+      .ref-grid{stroke:var(--line);stroke-width:1}
+      .ref-axis-label{fill:var(--muted);font-size:9px}
+      .ref-band{fill:rgba(141,161,126,.20)}
+      .ref-mid{fill:none;stroke:var(--green);stroke-width:1.5;stroke-dasharray:5 4;opacity:.8}
+      .baby-line{fill:none;stroke:var(--accent);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+      .baby-point{fill:var(--accent);stroke:var(--card);stroke-width:2.5}
+      .baby-point.out{fill:var(--orange)}
+      .ref-legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:6px;color:var(--muted);font-size:.78rem}
+      .ref-legend span{display:flex;align-items:center;gap:6px}
+      .legend-band{width:18px;height:10px;border-radius:5px;background:rgba(141,161,126,.22);display:inline-block}
+      .legend-line{width:18px;height:3px;border-radius:2px;background:var(--accent);display:inline-block}
+      .ref-note{margin-top:9px!important;font-size:.76rem!important;color:var(--muted)!important;line-height:1.4}
+      .ref-empty{min-height:150px;display:grid;place-items:center;text-align:center;color:var(--muted);border-top:1px solid var(--line);margin-top:10px;padding:20px}
+      html[data-theme="dark"] .ref-band{fill:rgba(159,178,142,.23)}
+      html[data-theme="dark"] .legend-band{background:rgba(159,178,142,.25)}
+    `;
+    let rs=document.getElementById('luma-v54-refcharts-style');
+    if(!rs){rs=document.createElement('style');rs.id='luma-v54-refcharts-style';document.head.appendChild(rs);}
+    rs.textContent=refCss;
+
+    parseGaWeeks=function(raw){
+      const s=String(raw||'').trim();
+      let m=s.match(/(\d+)\s*\+\s*(\d+)/);
+      if(m) return Number(m[1])+Number(m[2])/7;
+      const n=Number(s.replace(',','.'));
+      return Number.isFinite(n)?n:null;
+    };
+    interpRef=function(rows,x){
+      if(!Number.isFinite(x)||!rows?.length||x<rows[0][0]||x>rows[rows.length-1][0]) return null;
+      for(let i=0;i<rows.length;i++){
+        if(Math.abs(rows[i][0]-x)<1e-6) return {low:rows[i][1],mid:rows[i][2],high:rows[i][3]};
+        if(rows[i][0]>x){
+          const a=rows[i-1],b=rows[i],t=(x-a[0])/(b[0]-a[0]);
+          return {low:a[1]+(b[1]-a[1])*t,mid:a[2]+(b[2]-a[2])*t,high:a[3]+(b[3]-a[3])*t};
+        }
+      }
+      return null;
+    };
+    parseRefRows=function(text){
+      return text.split(';').map(r=>r.split(',').map(Number));
+    };
+
+    const CRL_REF=parseRefRows(
+      '8.2857,7.6,14.6,21.6;8.4286,8.9,16.1,23.3;8.5714,10.1,17.5,24.9;8.7143,11.4,19,26.6;8.8571,12.7,20.5,28.2;9,14,21.9,29.9;9.1429,15.3,23.4,31.6;9.2857,16.6,24.9,33.3;9.4286,17.9,26.5,35;9.5714,19.2,28,36.8;9.7143,20.6,29.5,38.5;9.8571,21.9,31.1,40.2;10,23.3,32.6,42;10.1429,24.6,34.2,43.8;10.2857,26,35.8,45.5;10.4286,27.4,37.4,47.3;10.5714,28.8,39,49.1;10.7143,30.2,40.6,50.9;10.8571,31.7,42.2,52.7;11,33.1,43.8,54.6;11.1429,34.6,45.5,56.4;11.2857,36,47.1,58.3;11.4286,37.5,48.8,60.1;11.5714,39,50.5,62;11.7143,40.5,52.2,63.9;11.8571,42,53.9,65.8;12,43.5,55.6,67.7;12.1429,45,57.3,69.6;12.2857,46.5,59,71.5;12.4286,48.1,60.8,73.5;12.5714,49.6,62.5,75.4;12.7143,51.2,64.3,77.4;12.8571,52.8,66.1,79.4;13,54.4,67.8,81.3;13.1429,56,69.6,83.3;13.2857,57.6,71.4,85.3;13.4286,59.2,73.3,87.3;13.5714,60.8,75.1,89.4;13.7143,62.5,76.9,91.4;13.8571,64.1,78.8,93.5;14,65.8,80.6,95.5;14.1429,67.4,82.5,97.6;14.2857,69.1,84.4,99.7;14.4286,70.8,86.3,101.7;14.5714,72.5,88.2,103.8;14.7143,74.2,90.1,105.9;14.8571,76,92,108.1;15,77.7,93.9,110.2'
+    );
+    const FHR_REF=parseRefRows(
+      '5,103.4,135.3,167.1;10,121.7,147.8,173.7;15,135.7,157,178.3;20,145.8,163.4,181;25,152.6,167.3,182.2;30,156.5,169.2,182.1;35,158,169.3,181;40,157.7,168.2,179.2;45,156,166.1,176.9;50,153.4,163.4,174.4;55,150.4,160.5,172.1;60,147.5,157.8,170;65,145.3,155.7,168.6;70,144.1,154.6,168.1;75,144.5,154.8,168.8;80,147.1,156.6,170.8;85,152.2,160.6,174.6'
+    );
+    const BPD_REF=parseRefRows(
+      '14,26.1,29.6,33.1;15,28.9,32.6,36.3;16,31.8,35.6,39.5;17,34.7,38.8,42.8;18,37.7,42,46.2;19,40.8,45.2,49.6;20,43.8,48.4,53;21,46.9,51.7,56.5;22,50,55,59.9;23,53.1,58.2,63.3;24,56.1,61.4,66.7;25,59.1,64.5,70;26,62,67.6,73.2;27,64.8,70.6,76.3;28,67.6,73.5,79.4;29,70.2,76.3,82.3;30,72.8,78.9,85.1;31,75.1,81.4,87.7;32,77.4,83.8,90.1;33,79.4,85.9,92.4;34,81.3,87.9,94.5;35,82.9,89.7,96.4;36,84.3,91.2,98.1;37,85.4,92.5,99.6;38,86.3,93.6,100.9;39,86.8,94.4,101.9;40,87.1,94.9,102.7'
+    );
+    const EFW_REF=parseRefRows(
+      '22,460,525,614;23,511,592,702;24,570,668,805;25,635,756,925;26,709,856,1062;27,791,969,1219;28,881,1097,1396;29,980,1239,1594;30,1089,1396,1813;31,1207,1568,2050;32,1334,1755,2304;33,1469,1954,2570;34,1612,2162,2843;35,1761,2378,3116;36,1913,2594,3381;37,2068,2806,3629;38,2221,3006,3850;39,2368,3186,4034;40,2505,3338,4171'
+    );
+
+    refForUltrasound=function(metric,u){
+      const ga=parseGaWeeks(u.gestational_age);
+      if(metric==='crl_mm') return interpRef(CRL_REF,ga);
+      if(metric==='bpd_mm') return interpRef(BPD_REF,ga);
+      if(metric==='efw_g') return interpRef(EFW_REF,ga);
+      if(metric==='fhr_bpm'){
+        const crl=Number(u?.baby_data?.crl_mm);
+        return interpRef(FHR_REF,crl);
+      }
+      return null;
+    };
+
+    metricSource=function(metric){
+      if(metric==='crl_mm') return {name:'CCN',source:'INTERGROWTH-21st — International Fetal Size Standards in Early Pregnancy',range:'Faixa apresentada: −2 a +2 desvios-padrão; referência disponível de 8+2 a 15+0 semanas.',note:'A medição anterior a 8+2 pode aparecer no gráfico, mas não recebe classificação por esta referência.'};
+      if(metric==='fhr_bpm') return {name:'FCF',source:'Araujo Júnior et al., J Matern Fetal Neonatal Med (2014)',range:'Faixa apresentada: percentis 5–95, em função do CCN medido (5–85 mm).',note:'A comparação da FCF usa o CCN registado na mesma ecografia.'};
+      if(metric==='bpd_mm') return {name:'BPD',source:'INTERGROWTH-21st — International Fetal Growth Standards',range:'Faixa apresentada: −2 a +2 desvios-padrão; 14–40 semanas.',note:'A técnica de medição deve ser compatível com a referência usada.'};
+      return {name:'Peso estimado',source:'INTERGROWTH-21st — International Fetal Growth Standards',range:'Faixa apresentada: −2 a +2 desvios-padrão; 22–40 semanas.',note:'O peso estimado depende da fórmula biométrica utilizada no exame.'};
+    };
+
+    openMetricReferenceInfo=function(metric){
+      const m=metricSource(metric);
+      openModal({
+        eyebrow:'Referência',
+        title:m.name,
+        html:`<div class="note-box"><strong>${esc(m.source)}</strong><p>${esc(m.range)}</p><p>${esc(m.note)}</p></div><p class="field-hint">Esta comparação é informativa e não substitui a interpretação do obstetra/ecografista. Um valor fora da faixa não equivale, por si só, a diagnóstico.</p>`,
+        onSubmit:async()=>{}
+      });
+    };
+
+    metricUserRows=function(metric){
+      return (state.ultrasounds||[])
+        .map(u=>({u,x:parseGaWeeks(u.gestational_age),y:Number(u?.baby_data?.[metric])}))
+        .filter(r=>Number.isFinite(r.x)&&Number.isFinite(r.y)&&r.y>0)
+        .sort((a,b)=>a.x-b.x);
+    };
+
+    metricReferenceSeries=function(metric,userRows){
+      if(metric==='fhr_bpm'){
+        return userRows.map(r=>{
+          const ref=refForUltrasound(metric,r.u);
+          return ref?{x:r.x,...ref}:null;
+        }).filter(Boolean);
+      }
+      const table=metric==='crl_mm'?CRL_REF:metric==='bpd_mm'?BPD_REF:EFW_REF;
+      if(!userRows.length) return table.map(r=>({x:r[0],low:r[1],mid:r[2],high:r[3]}));
+      const minUser=Math.min(...userRows.map(r=>r.x)), maxUser=Math.max(...userRows.map(r=>r.x));
+      const minX=Math.min(minUser,table[0][0]);
+      const maxX=Math.min(table[table.length-1][0],Math.max(maxUser+2,table[0][0]+2));
+      return table.filter(r=>r[0]>=minX-.01&&r[0]<=maxX+.01).map(r=>({x:r[0],low:r[1],mid:r[2],high:r[3]}));
+    };
+
+    formatChartNum=function(v){
+      if(Math.abs(v)>=1000) return Math.round(v).toLocaleString('pt-PT');
+      if(Math.abs(v)>=100) return String(Math.round(v));
+      return Number(v.toFixed(1)).toLocaleString('pt-PT');
+    };
+
+    referenceMetricCard=function(metric,label,unit){
+      const rows=metricUserRows(metric);
+      const src=metricSource(metric);
+      if(rows.length<2){
+        return `<div class="card ref-chart-card">
+          <div class="ref-chart-head"><div class="ref-title-row"><h2>${esc(label)} (${esc(unit)})</h2><button type="button" class="ref-info-btn" data-ref-info="${metric}">i</button></div><span class="ref-status none">A aguardar dados</span></div>
+          <div class="ref-empty"><div><strong>Aparece quando houver 2 medições</strong><div class="field-hint">Já podes continuar a registar este indicador nas ecografias.</div></div></div>
+        </div>`;
+      }
+
+      const refs=metricReferenceSeries(metric,rows);
+      const latest=rows[rows.length-1], latestRef=refForUltrasound(metric,latest.u);
+      const latestStatus=!latestRef?'none':latest.y<latestRef.low?'low':latest.y>latestRef.high?'high':'ok';
+      const statusText=latestStatus==='ok'?'Dentro da referência':latestStatus==='low'?'Abaixo da faixa':latestStatus==='high'?'Acima da faixa':'Sem classificação';
+      const statusClass=latestStatus==='ok'?'ok':latestStatus==='none'?'none':'warn';
+
+      const allX=[...rows.map(r=>r.x),...refs.map(r=>r.x)];
+      const allY=[...rows.map(r=>r.y),...refs.flatMap(r=>[r.low,r.high])];
+      let xmin=Math.min(...allX),xmax=Math.max(...allX),ymin=Math.min(...allY),ymax=Math.max(...allY);
+      if(xmax===xmin){xmax=xmin+1;}
+      if(ymax===ymin){ymax=ymin+1;}
+      const ypad=(ymax-ymin)*.12;
+      ymin=Math.max(0,ymin-ypad); ymax+=ypad;
+
+      const W=360,H=210,L=42,R=12,T=12,B=38;
+      const X=x=>L+((x-xmin)/(xmax-xmin))*(W-L-R);
+      const Y=y=>T+(1-(y-ymin)/(ymax-ymin))*(H-T-B);
+      const bandPts=refs.length>=2
+        ? refs.map(r=>`${X(r.x).toFixed(1)},${Y(r.high).toFixed(1)}`).concat([...refs].reverse().map(r=>`${X(r.x).toFixed(1)},${Y(r.low).toFixed(1)}`)).join(' ')
+        : '';
+      const midPts=refs.map(r=>`${X(r.x).toFixed(1)},${Y(r.mid).toFixed(1)}`).join(' ');
+      const babyPts=rows.map(r=>`${X(r.x).toFixed(1)},${Y(r.y).toFixed(1)}`).join(' ');
+      const yticks=Array.from({length:5},(_,i)=>ymin+(ymax-ymin)*i/4);
+      const xticks=Array.from({length:5},(_,i)=>xmin+(xmax-xmin)*i/4);
+
+      return `<div class="card ref-chart-card">
+        <div class="ref-chart-head">
+          <div class="ref-title-row"><h2>${esc(label)} (${esc(unit)})</h2><button type="button" class="ref-info-btn" data-ref-info="${metric}" aria-label="Informação sobre a referência">i</button></div>
+          <span class="ref-status ${statusClass}">${statusText}</span>
+        </div>
+        <svg viewBox="0 0 ${W} ${H}" class="reference-svg" role="img" aria-label="Evolução de ${esc(label)}">
+          ${yticks.map(v=>`<line x1="${L}" y1="${Y(v)}" x2="${W-R}" y2="${Y(v)}" class="ref-grid"/><text x="${L-6}" y="${Y(v)+3}" text-anchor="end" class="ref-axis-label">${esc(formatChartNum(v))}</text>`).join('')}
+          ${xticks.map(v=>`<text x="${X(v)}" y="${H-14}" text-anchor="middle" class="ref-axis-label">${Number(v.toFixed(1)).toLocaleString('pt-PT')}</text>`).join('')}
+          ${bandPts?`<polygon points="${bandPts}" class="ref-band"/>`:''}
+          ${refs.length>=2?`<polyline points="${midPts}" class="ref-mid"/>`:''}
+          <polyline points="${babyPts}" class="baby-line"/>
+          ${rows.map(r=>{const rr=refForUltrasound(metric,r.u);const out=rr&&(r.y<rr.low||r.y>rr.high);return `<circle cx="${X(r.x)}" cy="${Y(r.y)}" r="5" class="baby-point ${out?'out':''}"><title>${esc(r.u.gestational_age||'')} semanas · ${esc(formatChartNum(r.y))} ${esc(unit)}</title></circle>`;}).join('')}
+          <text x="${(L+W-R)/2}" y="${H-2}" text-anchor="middle" class="ref-axis-label">Semanas de gestação</text>
+        </svg>
+        <div class="ref-legend"><span><i class="legend-band"></i>Faixa de referência</span><span><i class="legend-line"></i>Medição do bebé</span></div>
+        <p class="ref-note">${esc(src.range)}</p>
+      </div>`;
+    };
+
+    renderUltrasoundCharts=function(){
+      return `<div class="reference-charts">
+        ${referenceMetricCard('crl_mm','CCN','mm')}
+        ${referenceMetricCard('fhr_bpm','FCF','bpm')}
+        ${referenceMetricCard('bpd_mm','BPD','mm')}
+        ${referenceMetricCard('efw_g','Peso estimado','g')}
+      </div>`;
+    };
+
+    renderChartsPage=function(){
+      return `<section class="view">
+        <div class="item-head"><div><p class="eyebrow">Gráficos</p><h2>Evolução e referências</h2></div></div>
+        <div><p class="eyebrow">Ecografias</p>${renderUltrasoundCharts()}</div>
+        <div><p class="eyebrow">Outros registos</p>${renderRecordCharts()}</div>
+        <p class="field-hint">As faixas são referências populacionais para acompanhamento. A interpretação clínica das medições deve ser feita pelo obstetra/ecografista.</p>
+      </section>`;
+    };
+
+    const bindV53=bindViewActions;
+    bindViewActions=function(){
+      bindV53();
+      document.querySelectorAll('[data-ref-info]').forEach(b=>b.addEventListener('click',()=>openMetricReferenceInfo(b.dataset.refInfo)));
+    };
+
+    setTimeout(()=>{if(state?.user&&state?.pregnancy&&state.currentView==='charts')renderApp();},100);
+  } catch(e){console.warn('Luma V5.4 reference charts not applied',e);}
+})();
