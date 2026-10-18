@@ -804,3 +804,75 @@
     setTimeout(()=>{if(state?.user&&state?.pregnancy)renderApp();},100);
   } catch(e){console.warn('Luma V5.1 charts page not applied',e);}
 })();
+
+// Luma V5.3 — ultrasound measurements in Evolution charts
+(() => {
+  try {
+    ultrasoundMetricChart=function(metric,label,unit){
+      const rows=(state.ultrasounds||[])
+        .map(u=>({
+          record_date:u.exam_date,
+          n:Number(u?.baby_data?.[metric]),
+          type:label,
+          unit,
+          ga:u.gestational_age||''
+        }))
+        .filter(r=>r.record_date && Number.isFinite(r.n) && r.n>0)
+        .sort((a,b)=>a.record_date.localeCompare(b.record_date));
+
+      if(rows.length<2) return '';
+      const values=rows.map(r=>r.n);
+      const min=Math.min(...values), max=Math.max(...values), span=(max-min)||1;
+      const w=320,h=130,pad=18;
+      const pts=rows.map((r,i)=>{
+        const x=pad+(i/(rows.length-1||1))*(w-pad*2);
+        const y=h-pad-((r.n-min)/span)*(h-pad*2);
+        return [x,y];
+      });
+      const poly=pts.map(p=>p.join(',')).join(' ');
+      return `<div class="card chart-card">
+        <div class="item-head">
+          <div><p class="eyebrow">Ecografias</p><h2>${esc(label)}</h2></div>
+          <strong>${esc(values[values.length-1])} ${esc(unit)}</strong>
+        </div>
+        <svg viewBox="0 0 ${w} ${h}" class="trend-chart">
+          <line x1="${pad}" y1="${h-pad}" x2="${w-pad}" y2="${h-pad}" class="chart-axis"/>
+          <polyline points="${poly}" class="chart-line"/>
+          ${pts.map((p,i)=>`<circle cx="${p[0]}" cy="${p[1]}" r="4" class="chart-point"><title>${fmtDate(rows[i].record_date)}${rows[i].ga?' · '+esc(rows[i].ga)+' semanas':''}: ${rows[i].n} ${esc(unit)}</title></circle>`).join('')}
+        </svg>
+        <div class="chart-labels"><span>${fmtDate(rows[0].record_date)}</span><span>${fmtDate(rows[rows.length-1].record_date)}</span></div>
+      </div>`;
+    };
+
+    renderUltrasoundCharts=function(){
+      const charts=[
+        ultrasoundMetricChart('crl_mm','CCN','mm'),
+        ultrasoundMetricChart('fhr_bpm','FCF','bpm'),
+        ultrasoundMetricChart('bpd_mm','BPD','mm'),
+        ultrasoundMetricChart('efw_g','Peso estimado','g')
+      ].filter(Boolean);
+
+      if(!charts.length) return `<div class="card chart-empty"><p class="eyebrow">Ecografias</p><h2>Evolução fetal</h2><p class="muted">Os gráficos aparecem quando existirem pelo menos duas medições do mesmo indicador em ecografias diferentes.</p></div>`;
+      return `<div class="charts-grid">${charts.join('')}</div>`;
+    };
+
+    renderChartsPage=function(){
+      return `<section class="view">
+        <div class="item-head">
+          <div><p class="eyebrow">Gráficos</p><h2>Evolução</h2></div>
+          <button class="btn secondary compact-btn" id="chartsNewRecordBtn">Novo registo</button>
+        </div>
+        <div>
+          <p class="eyebrow">Ecografias</p>
+          ${renderUltrasoundCharts()}
+        </div>
+        <div>
+          <p class="eyebrow">Outros registos</p>
+          ${renderRecordCharts()}
+        </div>
+      </section>`;
+    };
+
+    setTimeout(()=>{if(state?.user&&state?.pregnancy&&state.currentView==='charts')renderApp();},100);
+  } catch(e){console.warn('Luma V5.3 ultrasound charts not applied',e);}
+})();
